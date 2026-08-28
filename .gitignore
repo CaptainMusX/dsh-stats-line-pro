@@ -1,0 +1,11 @@
+node_modules/
+.npm/
+.pnpm-store/
+dist/
+coverage/
+*.log
+*.tgz
+.env
+.env.*
+.credentials.yaml
+.dsh/

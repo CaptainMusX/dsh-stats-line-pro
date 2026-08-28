@@ -1,0 +1,4 @@
+# dsh-stats-line-pro bundle patch: mount the host and browser halves.
+- insert:
+    - id: stats-line-pro
+      name: dsh-stats-line-pro
