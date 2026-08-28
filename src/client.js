@@ -36,7 +36,7 @@ html[data-dsh-wallpaper-active] [data-slot="conversation.composer.dock"] > [data
   max-width: var(--dsh-chat-content-width, 748px);
   margin: 4px auto !important;
   padding: 0 !important;
-  color: #172033 !important;
+  color: #000 !important;
   background: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -48,7 +48,7 @@ html[data-dsh-wallpaper-active] [data-slot="conversation.composer.dock"] > [data
   line-height: 20px;
   white-space: normal !important;
   overflow: visible !important;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.88), 0 0 1px rgba(255, 255, 255, 0.62);
+  text-shadow: none !important;
 }
 
 html[data-dsh-skin] [data-slot="conversation.composer.dock"] > [data-stats-line-pro],
@@ -59,7 +59,7 @@ html[data-dsh-wallpaper-active] [data-slot="conversation.composer.dock"] > [data
   --dsh-composer-accessory-border: none;
   --dsh-composer-accessory-radius: 0;
   --dsh-composer-accessory-blur: 0;
-  color: #172033 !important;
+  color: #000 !important;
   background: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -81,13 +81,13 @@ html[data-dsh-wallpaper-active] [data-slot="conversation.composer.dock"] > [data
 
 [data-stats-line-pro-separator] {
   display: inline;
-  color: #40506f !important;
+  color: #000 !important;
   margin: 0 8px;
   white-space: pre;
 }
 
 [data-stats-line-pro-row="provider"] {
-  color: #172033 !important;
+  color: #000 !important;
   font-weight: 600;
 }
 
@@ -95,27 +95,27 @@ body[data-ds-dark-theme] [data-stats-line-pro],
 html[data-theme="dark"] [data-stats-line-pro],
 html[data-ds-theme="dark"] [data-stats-line-pro],
 html.dark [data-stats-line-pro] {
-  color: #f8fafc !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.82);
+  color: #000 !important;
+  text-shadow: none !important;
 }
 
 body[data-ds-dark-theme] [data-stats-line-pro-separator],
 html[data-theme="dark"] [data-stats-line-pro-separator],
 html[data-ds-theme="dark"] [data-stats-line-pro-separator],
 html.dark [data-stats-line-pro-separator] {
-  color: #c7cce0 !important;
+  color: #000 !important;
 }
 
 @media (prefers-color-scheme: dark) {
   [data-stats-line-pro] {
-    color: #f8fafc !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.88), 0 0 1px rgba(0, 0, 0, 0.72);
+    color: #000 !important;
+    text-shadow: none !important;
   }
   [data-stats-line-pro-row="provider"] {
-    color: #f8fafc !important;
+    color: #000 !important;
   }
   [data-stats-line-pro-separator] {
-    color: #c7cce0 !important;
+    color: #000 !important;
   }
 }
 `
