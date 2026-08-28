@@ -3,11 +3,15 @@ import assert from 'node:assert/strict'
 import {
   billedInputTokens,
   cacheHitPercent,
+  calculateConversationCost,
+  estimateModelCost,
   formatConversationLines,
+  formatCostSummary,
   formatDuration,
   formatProviderUsage,
   formatTokens,
   latestProviderOf,
+  pricingFor,
   providerUsageView
 } from '../src/format.js'
 
@@ -66,6 +70,68 @@ test('provider usage formatting distinguishes subscription and balance', () => {
     available: true,
     balances: [{ currency: 'CNY', totalBalance: '110.00' }]
   }), 'DeepSeek余额：CNY 110')
+})
+
+test('OpenCode Go uses model-specific peak and off-peak prices', () => {
+  const usage = { inputTokens: 1_000_000, outputTokens: 1_000_000, cacheReadTokens: 0 }
+  const peak = estimateModelCost(usage, 'opencode-go', 'deepseek-v4-flash', new Date('2026-08-17T02:00:00Z'))
+  const offpeak = estimateModelCost(usage, 'opencode-go', 'deepseek-v4-pro', new Date('2026-08-17T05:00:00Z'))
+  assert.deepEqual(peak, {
+    amount: 1.76,
+    currency: 'USD',
+    mode: 'peak',
+    provider: 'opencode-go',
+    model: 'deepseek-v4-flash'
+  })
+  assert.deepEqual(offpeak, {
+    amount: 2.64,
+    currency: 'USD',
+    mode: 'offpeak',
+    provider: 'opencode-go',
+    model: 'deepseek-v4-pro'
+  })
+  assert.equal(estimateModelCost({ inputTokens: 0, outputTokens: 0, cacheWriteTokens: 1_000_000 }, 'deepseek-official', 'deepseek-v4-flash', new Date('2026-08-17T05:00:00Z')).amount, 1.5)
+  assert.equal(pricingFor('opencode-go', 'deepseek-v4-flash', new Date('2026-08-17T02:00:00Z'), usage).input, 0.44)
+})
+
+test('conversation cost follows each assistant source and accumulates currencies separately', () => {
+  const events = [
+    { type: 'request/context', seq: 1, time: Date.parse('2026-08-17T01:59:00Z'), data: { provider: 'opencode-go', model: 'deepseek-v4-flash' } },
+    { type: 'step/start', seq: 2, time: Date.parse('2026-08-17T02:00:00Z'), data: { turn: 1, step: 1 } },
+    {
+      type: 'assistant/message',
+      seq: 3,
+      time: Date.parse('2026-08-17T02:00:10Z'),
+      data: {
+        turn: 1,
+        step: 1,
+        message: { source: { kind: 'model', provider: 'opencode-go', model: 'deepseek-v4-flash' } },
+        usage: { inputTokens: 1_000_000, outputTokens: 1_000_000, cacheReadTokens: 0 }
+      }
+    },
+    { type: 'request/context', seq: 4, time: Date.parse('2026-08-17T04:59:00Z'), data: { provider: 'opencode-go', model: 'deepseek-v4-pro' } },
+    { type: 'step/start', seq: 5, time: Date.parse('2026-08-17T05:00:00Z'), data: { turn: 1, step: 2 } },
+    {
+      type: 'assistant/message',
+      seq: 6,
+      time: Date.parse('2026-08-17T05:00:10Z'),
+      data: {
+        turn: 1,
+        step: 2,
+        message: { source: { kind: 'model', provider: 'opencode-go', model: 'deepseek-v4-pro' } },
+        usage: { inputTokens: 1_000_000, outputTokens: 1_000_000, cacheReadTokens: 0 }
+      }
+    }
+  ]
+  const cost = calculateConversationCost(events)
+  assert.equal(cost.pricedRequests, 2)
+  assert.equal(cost.complete, true)
+  assert.deepEqual(cost.totals, [{ currency: 'USD', amount: 4.4 }])
+  assert.deepEqual(cost.entries.map(({ model, mode, amount }) => ({ model, mode, amount })), [
+    { model: 'deepseek-v4-flash', mode: 'peak', amount: 1.76 },
+    { model: 'deepseek-v4-pro', mode: 'offpeak', amount: 2.64 }
+  ])
+  assert.equal(formatCostSummary(cost), '花费 $4.40')
 })
 
 test('latest provider comes from durable assistant provenance', () => {

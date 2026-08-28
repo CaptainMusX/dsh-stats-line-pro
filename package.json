@@ -1,7 +1,7 @@
 {
   "name": "dsh-stats-line-pro",
-  "version": "0.1.3",
-  "description": "DeepSeek Harness Web statistics line with transparent multi-line layout and provider-aware balance or subscription usage.",
+  "version": "0.2.0",
+  "description": "DeepSeek Harness Web statistics line with transparent multi-line layout, provider usage, and cumulative per-request cost.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 import {
+  calculateConversationCost,
   deriveStats,
   formatConversationLines,
   latestProviderOf,
@@ -218,8 +219,80 @@ async function fetchProviderUsage(provider, signal) {
   return response.json()
 }
 
+const HISTORY_PAGE_MESSAGES = 50
+
+function rpcId() {
+  const cryptoObject = typeof globalThis === 'undefined' ? undefined : globalThis.crypto
+  if (typeof cryptoObject?.randomUUID === 'function') return cryptoObject.randomUUID()
+  return `dsh-stats-line-pro-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+async function fetchSessionHistoryPage(sessionId, beforeSeq, maxMessages, signal) {
+  const id = rpcId()
+  const payload = { sessionId, maxMessages }
+  if (beforeSeq !== undefined) payload.beforeSeq = beforeSeq
+  const response = await fetch('/api/session.history', {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json'
+    },
+    cache: 'no-store',
+    signal,
+    body: JSON.stringify({
+      type: 'client-request',
+      rpcId: id,
+      method: 'session.history',
+      payload
+    })
+  })
+  if (!response.ok) throw new Error(`history-http-${response.status}`)
+  const body = await response.json()
+  if (body?.rpcId !== id || body?.result?.ok !== true || typeof body.result.value !== 'object') throw new Error('history-rpc-invalid')
+  return body.result.value
+}
+
+async function loadSessionEvents(sessionId, signal) {
+  const pages = []
+  let beforeSeq
+  for (let pageNumber = 0; pageNumber < 1000; pageNumber += 1) {
+    const page = await fetchSessionHistoryPage(sessionId, beforeSeq, HISTORY_PAGE_MESSAGES, signal)
+    const events = (Array.isArray(page.events) ? page.events : [])
+      .map((entry) => entry?.event)
+      .filter((event) => event !== null && typeof event === 'object')
+    if (events.length === 0) break
+    pages.push(events)
+    if (page.hasMore !== true) break
+    const nextBeforeSeq = events[0]?.seq
+    if (!Number.isSafeInteger(nextBeforeSeq) || (beforeSeq !== undefined && nextBeforeSeq >= beforeSeq)) throw new Error('history-pagination-invalid')
+    beforeSeq = nextBeforeSeq
+    if (pageNumber === 999) throw new Error('history-too-many-pages')
+  }
+  return pages.reverse().flat()
+}
+
+function mergeHistoryTail(existing, incoming) {
+  if (incoming.length === 0) return existing
+  if (existing.length === 0) return incoming
+  const firstSeq = incoming[0]?.seq
+  if (!Number.isSafeInteger(firstSeq)) return existing
+  let low = 0
+  let high = existing.length
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    if ((existing[middle]?.seq ?? 0) < firstSeq) low = middle + 1
+    else high = middle
+  }
+  if (low === existing.length) return existing.concat(incoming)
+  if (existing[low]?.seq === firstSeq) return existing.slice(0, low).concat(incoming)
+  const merged = new Map(existing.map((event) => [event.seq, event]))
+  incoming.forEach((event) => merged.set(event.seq, event))
+  return [...merged.values()].sort((left, right) => (left.seq ?? 0) - (right.seq ?? 0))
+}
+
 const StatsLinePro = memo(function StatsLinePro({ useSession, useProjection, sessionId, modelDirectory }) {
   const nodes = useSession((snapshot) => snapshot.chat.legacy.nodes)
+  const running = useSession((snapshot) => snapshot.running)
   const sessionStats = useProjection('sessionStats')
   const tokenUsage = useProjection('tokenUsage')
   const liveTokenUsage = useProjection('liveTokenUsage')
@@ -236,6 +309,7 @@ const StatsLinePro = memo(function StatsLinePro({ useSession, useProjection, ses
   }, [modelState, nodes])
   const provider = identity?.provider ?? ''
   const [providerResult, setProviderResult] = useState(null)
+  const [costState, setCostState] = useState({ status: 'loading' })
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -269,13 +343,54 @@ const StatsLinePro = memo(function StatsLinePro({ useSession, useProjection, ses
     }
   }, [provider, sessionId])
 
+  useEffect(() => {
+    if (typeof sessionId !== 'string' || sessionId.length === 0) {
+      setCostState({ status: 'ready', ...calculateConversationCost([]) })
+      return undefined
+    }
+    let alive = true
+    let busy = false
+    let cachedEvents = null
+    const controller = new AbortController()
+    const refresh = async (full) => {
+      if (!alive || busy) return
+      busy = true
+      try {
+        if (full || cachedEvents === null) cachedEvents = await loadSessionEvents(sessionId, controller.signal)
+        else {
+          const page = await fetchSessionHistoryPage(sessionId, undefined, 1, controller.signal)
+          const tail = (Array.isArray(page.events) ? page.events : [])
+            .map((entry) => entry?.event)
+            .filter((event) => event !== null && typeof event === 'object')
+          cachedEvents = mergeHistoryTail(cachedEvents, tail)
+        }
+        if (alive) setCostState({ status: 'ready', ...calculateConversationCost(cachedEvents, Date.now()) })
+      } catch (error) {
+        if (alive && error?.name !== 'AbortError') setCostState({ status: 'error' })
+      } finally {
+        busy = false
+      }
+    }
+    setCostState({ status: 'loading' })
+    void refresh(true)
+    const timer = running ? setInterval(() => void refresh(false), 5_000) : undefined
+    return () => {
+      alive = false
+      controller.abort()
+      if (timer !== undefined) clearInterval(timer)
+    }
+  }, [running, sessionId])
+
+  const costOverride = costState.status === 'ready' ? costState : null
   const lines = useMemo(() => formatConversationLines(
     sessionStats ?? deriveStats(nodes),
     tokenUsage,
     liveTokenUsage,
     provider,
-    identity?.model ?? ''
-  ), [identity?.model, liveTokenUsage, nodes, provider, sessionStats, tokenUsage])
+    identity?.model ?? '',
+    new Date(now),
+    costOverride
+  ), [costOverride, identity?.model, liveTokenUsage, nodes, now, provider, sessionStats, tokenUsage])
   const providerView = provider.length > 0
     ? providerUsageView(provider, providerResult ?? { status: 'loading' }, now)
     : null
@@ -304,6 +419,7 @@ const StatsLinePro = memo(function StatsLinePro({ useSession, useProjection, ses
   return jsx('div', {
     'aria-label': '会话统计',
     'data-stats-line-pro': '',
+    'data-stats-line-pro-cost-status': costState.status,
     'data-stats-line-pro-provider': provider || undefined,
     children
   })

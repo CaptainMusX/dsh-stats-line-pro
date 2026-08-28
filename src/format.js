@@ -1,6 +1,94 @@
-const DEEPSEEK_PRICES = {
-  peak: { cacheHit: 0.1, cacheMiss: 3, output: 9 },
-  offpeak: { cacheHit: 0.05, cacheMiss: 1.5, output: 4.5 }
+const DEEPSEEK_PRICING_EFFECTIVE_AT = Date.UTC(2026, 7, 16, 16)
+const OPENCODE_GO_PRICING_EFFECTIVE_AT = Date.UTC(2026, 7, 16, 16)
+
+function rates(input, output, cacheRead, cacheWrite = 0) {
+  return { input, output, cacheRead, cacheWrite }
+}
+
+const DEEPSEEK_FLASH_PRICES = {
+  currency: 'CNY',
+  legacy: rates(1, 2, 0.02, 1),
+  peak: rates(3, 9, 0.1, 3),
+  offpeak: rates(1.5, 4.5, 0.05, 1.5)
+}
+const DEEPSEEK_PRO_PRICES = {
+  currency: 'CNY',
+  legacy: rates(3, 6, 0.025, 3),
+  peak: rates(9, 27, 0.3, 9),
+  offpeak: rates(4.5, 13.5, 0.15, 4.5)
+}
+const DEEPSEEK_MODEL_PRICES = {
+  'deepseek-v4-flash': DEEPSEEK_FLASH_PRICES,
+  'deepseek-v4-flash-vision-exp': DEEPSEEK_FLASH_PRICES,
+  'deepseek-v4-pro': DEEPSEEK_PRO_PRICES
+}
+
+const OPENCODE_GO_FLASH_PRICES = {
+  currency: 'USD',
+  legacy: rates(0.14, 0.28, 0.0028),
+  peak: rates(0.44, 1.32, 0.014),
+  offpeak: rates(0.22, 0.66, 0.007)
+}
+const OPENCODE_GO_PRO_PRICES = {
+  currency: 'USD',
+  legacy: rates(0.435, 0.87, 0.003625),
+  peak: rates(1.32, 3.96, 0.044),
+  offpeak: rates(0.66, 1.98, 0.022)
+}
+
+function openCodeGoPrice(input, output, cacheRead, cacheWrite = 0) {
+  return { currency: 'USD', rates: rates(input, output, cacheRead, cacheWrite) }
+}
+
+function openCodeGoTieredPrice(tiers) {
+  return { currency: 'USD', tiers }
+}
+
+/* Official OpenCode Go prices per 1M tokens, verified 2026-08-28. */
+const OPENCODE_GO_MODEL_PRICES = {
+  'deepseek-v4-flash': OPENCODE_GO_FLASH_PRICES,
+  'deepseek-v4-flash-vision-exp': OPENCODE_GO_FLASH_PRICES,
+  'deepseek-v4-pro': OPENCODE_GO_PRO_PRICES,
+  'glm-5.3-flash': openCodeGoPrice(0.15, 0.5, 0.03),
+  'glm-5.3': openCodeGoPrice(1.4, 4.4, 0.26),
+  'glm-5.2': openCodeGoPrice(1.4, 4.4, 0.26),
+  'glm-5.1': openCodeGoPrice(1.4, 4.4, 0.26),
+  'kimi-k3': openCodeGoPrice(3, 15, 0.3),
+  'kimi-k2.7-code': openCodeGoPrice(0.95, 4, 0.19),
+  'kimi-k2.6': openCodeGoPrice(0.95, 4, 0.16),
+  'longcat-2.0': openCodeGoPrice(0.3, 1.2, 0.006),
+  'mimo-v2.5': openCodeGoPrice(0.14, 0.28, 0.0028),
+  'mimo-v2.5-pro': openCodeGoPrice(0.435, 0.87, 0.003625),
+  'minimax-m3': openCodeGoPrice(0.3, 1.2, 0.06),
+  'minimax-m2.7': openCodeGoPrice(0.3, 1.2, 0.06, 0.375),
+  'minimax-m2.5': openCodeGoPrice(0.3, 1.2, 0.06, 0.375),
+  'muse-spark-1.2-contributor': openCodeGoPrice(0.1, 0.2, 0.002),
+  'qwen3.8-max': openCodeGoPrice(2, 6, 0.25, 2.5),
+  'qwen3.8-flash': openCodeGoPrice(0.15, 0.47, 0.016, 0.2),
+  'qwen3.7-max': openCodeGoPrice(2.5, 7.5, 0.5, 3.125),
+  'qwen3.7-plus': openCodeGoTieredPrice([
+    { maxContextTokens: 256_000, rates: rates(0.4, 1.6, 0.04, 0.5) },
+    { rates: rates(1.2, 4.8, 0.12, 1.5) }
+  ]),
+  'qwen3.6-plus': openCodeGoTieredPrice([
+    { maxContextTokens: 256_000, rates: rates(0.5, 3, 0.05, 0.625) },
+    { rates: rates(2, 6, 0.2, 2.5) }
+  ]),
+  'hy3': openCodeGoPrice(0.14, 0.58, 0.035),
+  'grok-4.6': openCodeGoTieredPrice([
+    { maxContextTokens: 200_000, rates: rates(2, 6, 0.5) },
+    { rates: rates(4, 12, 1) }
+  ]),
+  'gpt-5.6-luna': openCodeGoTieredPrice([
+    { maxContextTokens: 272_000, rates: rates(0.2, 1.2, 0.02, 0.25) },
+    { rates: rates(0.4, 1.8, 0.04, 0.5) }
+  ]),
+  'big-pickle': openCodeGoPrice(0, 0, 0),
+  'mimo-v2.5-free': openCodeGoPrice(0, 0, 0),
+  'hy3-free': openCodeGoPrice(0, 0, 0),
+  'nemotron-3-ultra-free': openCodeGoPrice(0, 0, 0),
+  'nemotron-3.5-lightning-free': openCodeGoPrice(0, 0, 0),
+  'muse-spark-1.2-contributor-free': openCodeGoPrice(0, 0, 0)
 }
 
 function finiteNonNegative(value) {
@@ -47,24 +135,116 @@ function isDeepSeekProvider(provider) {
   return typeof provider === 'string' && provider.includes('deepseek') && !provider.includes('opencode') && !provider.includes('packcode')
 }
 
-function isPeakHour(now) {
-  const hour = (now.getUTCHours() + 8) % 24
+function asDate(value) {
+  if (value instanceof Date) return value
+  const date = new Date(value)
+  return Number.isFinite(date.getTime()) ? date : new Date(0)
+}
+
+function isDeepSeekPeakHour(now) {
+  const hour = (asDate(now).getUTCHours() + 8) % 24
   return (hour >= 9 && hour < 12) || (hour >= 14 && hour < 18)
 }
 
-/**
- * Keep the previous DeepSeek cost indicator, but only show it for a provider
- * whose price basis is known. Third-party gateways must not be mislabeled with
- * DeepSeek's prices.
- */
+function isOpenCodeGoProvider(provider) {
+  return typeof provider === 'string' && (provider === 'opencode-go' || provider.startsWith('opencode-go-'))
+}
+
+function isOpenCodeGoPeakHour(now) {
+  const date = asDate(now)
+  const weekday = date.getUTCDay()
+  if (weekday === 0 || weekday === 6) return false
+  const minutes = date.getUTCHours() * 60 + date.getUTCMinutes()
+  return (minutes >= 60 && minutes < 240) || (minutes >= 360 && minutes < 600)
+}
+
+function normalizedModelId(model) {
+  const raw = typeof model === 'string' ? model.trim().toLowerCase() : ''
+  const id = raw.includes('/') ? raw.slice(raw.lastIndexOf('/') + 1) : raw
+  if (id === 'deepseek-chat' || id === 'deepseek-reasoner') return 'deepseek-v4-flash'
+  return id
+}
+
+function billingUsage(usage) {
+  if (usage === null || typeof usage !== 'object' || Array.isArray(usage)) return null
+  const knownKeys = [
+    'inputTokens', 'uncachedInputTokens', 'promptTokens',
+    'outputTokens', 'cacheReadTokens', 'cacheRead', 'cacheWriteTokens', 'cacheWrite'
+  ]
+  if (!knownKeys.some((key) => Object.hasOwn(usage, key))) return null
+  const firstNumber = (...values) => values.find((value) => typeof value === 'number' && Number.isFinite(value)) ?? 0
+  return {
+    uncachedInputTokens: Math.max(0, firstNumber(usage.uncachedInputTokens, usage.inputTokens, usage.promptTokens)),
+    outputTokens: Math.max(0, firstNumber(usage.outputTokens)),
+    cacheReadTokens: Math.max(0, firstNumber(usage.cacheReadTokens, usage.cacheRead)),
+    cacheWriteTokens: Math.max(0, firstNumber(usage.cacheWriteTokens, usage.cacheWrite))
+  }
+}
+
+function selectRates(entry, at, usage, peakPredicate, effectiveAt) {
+  if (Array.isArray(entry.tiers)) {
+    const contextTokens = billedInputTokens(usage)
+    return entry.tiers.find((tier) => tier.maxContextTokens === undefined || contextTokens <= tier.maxContextTokens)?.rates ?? entry.tiers.at(-1).rates
+  }
+  if (entry.peak !== undefined && entry.offpeak !== undefined) {
+    if (entry.legacy !== undefined && at.getTime() < effectiveAt) return { ...entry.legacy, mode: 'legacy' }
+    return { ...(peakPredicate(at) ? entry.peak : entry.offpeak), mode: peakPredicate(at) ? 'peak' : 'offpeak' }
+  }
+  return { ...entry.rates, mode: 'standard' }
+}
+
+/** Resolve the official price rule for one exact provider/model request. */
+export function pricingFor(provider, model, at = new Date(), usage = null) {
+  const modelId = normalizedModelId(model)
+  const date = asDate(at)
+  if (isOpenCodeGoProvider(provider)) {
+    const entry = OPENCODE_GO_MODEL_PRICES[modelId]
+    if (entry === undefined) return null
+    return {
+      provider,
+      model: modelId,
+      currency: entry.currency,
+      ...selectRates(entry, date, usage ?? {}, isOpenCodeGoPeakHour, OPENCODE_GO_PRICING_EFFECTIVE_AT)
+    }
+  }
+  if (isDeepSeekProvider(provider)) {
+    const entry = DEEPSEEK_MODEL_PRICES[modelId]
+    if (entry === undefined) return null
+    return {
+      provider,
+      model: modelId,
+      currency: entry.currency,
+      ...selectRates(entry, date, usage ?? {}, isDeepSeekPeakHour, DEEPSEEK_PRICING_EFFECTIVE_AT)
+    }
+  }
+  return null
+}
+
+/** Calculate one provider/model request cost from the provider-returned usage. */
+export function estimateModelCost(usage, provider, model, at = new Date()) {
+  const normalized = billingUsage(usage)
+  if (normalized === null) return null
+  const pricing = pricingFor(provider, model, at, normalized)
+  if (pricing === null) return null
+  const amount = (
+    normalized.uncachedInputTokens / 1e6 * pricing.input
+    + normalized.cacheReadTokens / 1e6 * pricing.cacheRead
+    + normalized.cacheWriteTokens / 1e6 * pricing.cacheWrite
+    + normalized.outputTokens / 1e6 * pricing.output
+  )
+  return {
+    amount,
+    currency: pricing.currency,
+    mode: pricing.mode,
+    provider: pricing.provider,
+    model: pricing.model
+  }
+}
+
+/** Backwards-compatible CNY helper for callers that only know the official DeepSeek route. */
 export function estimateCostCny(usage, provider, now = new Date()) {
-  if (!isDeepSeekProvider(provider) || usage === null || typeof usage !== 'object') return null
-  const prices = isPeakHour(now) ? DEEPSEEK_PRICES.peak : DEEPSEEK_PRICES.offpeak
-  const miss = (finiteNonNegative(usage.uncachedInputTokens) + finiteNonNegative(usage.cacheWriteTokens)) / 1e6 * prices.cacheMiss
-  const hit = finiteNonNegative(usage.cacheReadTokens) / 1e6 * prices.cacheHit
-  const output = finiteNonNegative(usage.outputTokens) / 1e6 * prices.output
-  const total = miss + hit + output
-  return total > 0 ? total : null
+  const cost = estimateModelCost(usage, provider, 'deepseek-v4-flash', now)
+  return cost?.currency === 'CNY' && cost.amount > 0 ? cost.amount : null
 }
 
 /** Small fallback for an old DSH deployment without the sessionStats unit. */
@@ -127,6 +307,163 @@ function formatMoney(value) {
   const n = Number(value)
   if (!Number.isFinite(n)) return String(value ?? '')
   return n.toFixed(2).replace(/\.?(0+)$/, '')
+}
+
+function identityFromEvent(event, context, fallback) {
+  const source = event?.data?.message?.source
+  const candidates = [
+    { provider: source?.provider, model: source?.model },
+    { provider: event?.data?.provider, model: event?.data?.model },
+    context,
+    fallback
+  ]
+  for (const candidate of candidates) {
+    const provider = typeof candidate?.provider === 'string' && candidate.provider.length > 0 ? candidate.provider : ''
+    const model = typeof candidate?.model === 'string' && candidate.model.length > 0 ? candidate.model : ''
+    if (provider && model) return { provider, model }
+  }
+  return null
+}
+
+function stepKey(data) {
+  return Number.isInteger(data?.turn) && Number.isInteger(data?.step) ? `${data.turn}:${data.step}` : null
+}
+
+function eventDate(value, fallback) {
+  const date = new Date(value)
+  return Number.isFinite(date.getTime()) ? date : fallback
+}
+
+/**
+ * Sum every recorded model request in sequence order. Assistant message source
+ * is preferred; request/context is the compatibility fallback for older logs.
+ */
+export function calculateConversationCost(events = [], now = Date.now(), fallbackIdentity = null) {
+  const referenceDate = eventDate(now, new Date())
+  const ordered = (Array.isArray(events) ? events : [])
+    .filter((event) => event !== null && typeof event === 'object')
+    .slice()
+    .sort((left, right) => (left.seq ?? 0) - (right.seq ?? 0))
+  const stepStarts = new Map()
+  const pending = new Map()
+  const totals = new Map()
+  const entries = []
+  let context = null
+  let pricedRequests = 0
+  let unpricedRequests = 0
+  let missingUsageRequests = 0
+
+  const addSample = (sample) => {
+    const normalized = billingUsage(sample.usage)
+    if (normalized === null) {
+      missingUsageRequests += 1
+      return
+    }
+    const identity = sample.identity ?? identityFromEvent(sample.event, context, fallbackIdentity)
+    const cost = estimateModelCost(normalized, identity?.provider, identity?.model, sample.at)
+    if (cost === null) {
+      unpricedRequests += 1
+      return
+    }
+    pricedRequests += 1
+    totals.set(cost.currency, (totals.get(cost.currency) ?? 0) + cost.amount)
+    entries.push({
+      seq: sample.event?.seq,
+      turn: sample.event?.data?.turn,
+      step: sample.event?.data?.step,
+      at: sample.at.getTime(),
+      provider: cost.provider,
+      model: cost.model,
+      currency: cost.currency,
+      amount: cost.amount,
+      mode: cost.mode
+    })
+  }
+
+  const flushPending = (key) => {
+    const sample = pending.get(key)
+    if (sample === undefined) return
+    pending.delete(key)
+    addSample(sample)
+  }
+
+  for (const event of ordered) {
+    if (event.type === 'request/context') {
+      const provider = event.data?.provider
+      const model = event.data?.model
+      if (typeof provider === 'string' && typeof model === 'string' && provider && model) context = { provider, model }
+      continue
+    }
+
+    if (event.type === 'step/start') {
+      const key = stepKey(event.data)
+      if (key !== null) stepStarts.set(key, eventDate(event.time, referenceDate))
+      continue
+    }
+
+    if (event.type === 'assistant/chunk' && event.data?.chunk?.type === 'usage') {
+      const key = stepKey(event.data)
+      if (key !== null) pending.set(key, {
+        event,
+        usage: event.data.chunk.usage,
+        identity: identityFromEvent(event, context, fallbackIdentity),
+        at: stepStarts.get(key) ?? eventDate(event.time, referenceDate)
+      })
+      continue
+    }
+
+    if (event.type === 'assistant/message') {
+      const key = stepKey(event.data)
+      const sample = key === null ? undefined : pending.get(key)
+      if (key !== null) pending.delete(key)
+      const usage = event.data?.usage ?? sample?.usage
+      if (usage === undefined) {
+        missingUsageRequests += 1
+        continue
+      }
+      addSample({
+        event,
+        usage,
+        identity: identityFromEvent(event, sample?.identity ?? context, fallbackIdentity),
+        at: stepStarts.get(key) ?? sample?.at ?? eventDate(event.time, referenceDate)
+      })
+      continue
+    }
+
+    if (event.type === 'llm/retry' || event.type === 'step/end') {
+      const key = stepKey(event.data)
+      if (key !== null) flushPending(key)
+    }
+  }
+
+  for (const key of pending.keys()) flushPending(key)
+
+  return {
+    totals: [...totals.entries()].map(([currency, amount]) => ({ currency, amount })),
+    entries,
+    pricedRequests,
+    unpricedRequests,
+    missingUsageRequests,
+    complete: unpricedRequests === 0 && missingUsageRequests === 0
+  }
+}
+
+function currencyPrefix(currency) {
+  if (currency === 'USD') return '$'
+  if (currency === 'CNY') return '¥'
+  return `${currency ?? ''} `
+}
+
+/** Format one accumulated cost result, preserving separate currencies. */
+export function formatCostSummary(cost) {
+  if (cost === null || typeof cost !== 'object') return null
+  const totals = Array.isArray(cost.totals)
+    ? cost.totals.filter((item) => item && typeof item.amount === 'number' && Number.isFinite(item.amount))
+    : Number.isFinite(cost.amount) ? [{ currency: cost.currency, amount: cost.amount }] : []
+  const missing = Math.max(0, Number(cost.unpricedRequests) || 0) + Math.max(0, Number(cost.missingUsageRequests) || 0)
+  if (totals.length === 0) return missing > 0 ? `花费：${missing} 次请求未计价` : null
+  const rendered = totals.map((item) => `${currencyPrefix(item.currency)}${item.amount.toFixed(2)}`).join(' + ')
+  return `花费 ${rendered}${missing > 0 ? `（${missing} 次未计价）` : ''}`
 }
 
 function formatCountdown(iso, now) {
@@ -197,7 +534,7 @@ export function formatProviderUsage(provider, payload, now = Date.now()) {
 }
 
 /** Build intentionally multi-line groups so narrow windows never ellipsize the whole bar. */
-export function formatConversationLines(statsInput, usageInput, liveUsageInput, provider, model, now = new Date()) {
+export function formatConversationLines(statsInput, usageInput, liveUsageInput, provider, model, now = new Date(), costOverride) {
   const stats = statsInput ?? deriveStats([])
   const liveUsage = liveUsageInput ?? null
   const usage = usageInput ?? liveUsage
@@ -225,8 +562,9 @@ export function formatConversationLines(statsInput, usageInput, liveUsageInput, 
       const parts = []
       if (cache !== null) parts.push(`缓存命中 ${cache}%`)
       parts.push(`输入 ${formatTokens(inputTokens)} tok · 输出 ${formatTokens(outputTokens)} tok`)
-      const cost = estimateCostCny(usage, provider, now)
-      if (cost !== null) parts.push(`花费 ¥${cost.toFixed(2)}`)
+      const cost = costOverride === undefined ? estimateModelCost(usage, provider, model, now) : costOverride
+      const costText = formatCostSummary(cost)
+      if (costText !== null) parts.push(costText)
       lines.push(parts.join(' | '))
     }
   }
