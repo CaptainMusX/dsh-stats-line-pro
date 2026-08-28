@@ -36,6 +36,7 @@ test('conversation output is deliberately multi-line', () => {
   assert.match(lines[0], /16 轮 · 345 步/)
   assert.match(lines[1], /tok\/s/)
   assert.match(lines[2], /输入/)
+  assert.match(lines[2], /花费/)
 })
 
 test('provider usage formatting distinguishes subscription and balance', () => {

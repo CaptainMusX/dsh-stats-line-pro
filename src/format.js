@@ -204,7 +204,7 @@ export function formatConversationLines(statsInput, usageInput, liveUsageInput, 
       if (cache !== null) parts.push(`缓存命中 ${cache}%`)
       parts.push(`输入 ${formatTokens(inputTokens)} tok · 输出 ${formatTokens(outputTokens)} tok`)
       const cost = estimateCostCny(usage, provider, now)
-      if (cost !== null) parts.push(`估算花费 ¥${cost.toFixed(2)}`)
+      if (cost !== null) parts.push(`花费 ¥${cost.toFixed(2)}`)
       lines.push(parts.join(' | '))
     }
   }

@@ -36,7 +36,7 @@ html[data-dsh-wallpaper-active] [data-slot="conversation.composer.dock"] > [data
   max-width: var(--dsh-chat-content-width, 748px);
   margin: 4px auto !important;
   padding: 0 !important;
-  color: var(--dsw-alias-label-tertiary);
+  color: #172033 !important;
   background: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -44,9 +44,11 @@ html[data-dsh-wallpaper-active] [data-slot="conversation.composer.dock"] > [data
   backdrop-filter: none !important;
   text-align: center;
   font-size: 12px;
+  font-weight: 500;
   line-height: 20px;
   white-space: normal !important;
   overflow: visible !important;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.88), 0 0 1px rgba(255, 255, 255, 0.62);
 }
 
 html[data-dsh-skin] [data-slot="conversation.composer.dock"] > [data-stats-line-pro],
@@ -57,6 +59,7 @@ html[data-dsh-wallpaper-active] [data-slot="conversation.composer.dock"] > [data
   --dsh-composer-accessory-border: none;
   --dsh-composer-accessory-radius: 0;
   --dsh-composer-accessory-blur: 0;
+  color: #172033 !important;
   background: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -70,14 +73,50 @@ html[data-dsh-wallpaper-active] [data-slot="conversation.composer.dock"] > [data
 }
 
 [data-stats-line-pro-row] {
-  display: block;
+  display: inline;
   max-width: 100%;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
+[data-stats-line-pro-separator] {
+  display: inline;
+  color: #40506f !important;
+  margin: 0 8px;
+  white-space: pre;
+}
+
 [data-stats-line-pro-row="provider"] {
-  color: var(--dsw-alias-label-secondary);
+  color: #172033 !important;
+  font-weight: 600;
+}
+
+body[data-ds-dark-theme] [data-stats-line-pro],
+html[data-theme="dark"] [data-stats-line-pro],
+html[data-ds-theme="dark"] [data-stats-line-pro],
+html.dark [data-stats-line-pro] {
+  color: #f8fafc !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.82);
+}
+
+body[data-ds-dark-theme] [data-stats-line-pro-separator],
+html[data-theme="dark"] [data-stats-line-pro-separator],
+html[data-ds-theme="dark"] [data-stats-line-pro-separator],
+html.dark [data-stats-line-pro-separator] {
+  color: #c7cce0 !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-stats-line-pro] {
+    color: #f8fafc !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.88), 0 0 1px rgba(0, 0, 0, 0.72);
+  }
+  [data-stats-line-pro-row="provider"] {
+    color: #f8fafc !important;
+  }
+  [data-stats-line-pro-separator] {
+    color: #c7cce0 !important;
+  }
 }
 `
 
@@ -160,17 +199,22 @@ const StatsLinePro = memo(function StatsLinePro({ useSession, useProjection, ses
   const providerLine = provider.length > 0 ? formatProviderUsage(provider, providerResult ?? { status: 'loading' }, now) : null
   if (lines.length === 0 && providerLine === null) return null
 
-  const children = lines.map((line, index) => jsx('div', {
-    'data-stats-line-pro-row': 'conversation',
-    children: line,
-    key: `conversation-${index}`
-  }))
-  if (providerLine !== null) children.push(jsx('div', {
-    'data-stats-line-pro-row': 'provider',
-    'data-provider': provider,
-    children: providerLine,
-    key: 'provider'
-  }))
+  const children = []
+  const appendGroup = (content, key, kind = 'conversation') => {
+    if (children.length > 0) children.push(jsx('span', {
+      'aria-hidden': true,
+      'data-stats-line-pro-separator': '',
+      children: ' | ',
+      key: `${key}-separator`
+    }))
+    children.push(jsx('span', {
+      'data-stats-line-pro-row': kind,
+      children: content,
+      key
+    }))
+  }
+  lines.forEach((line, index) => appendGroup(line, `conversation-${index}`))
+  if (providerLine !== null) appendGroup(providerLine, 'provider', 'provider')
   return jsx('div', {
     'aria-label': '会话统计',
     'data-stats-line-pro': '',
