@@ -7,7 +7,8 @@ import {
   formatDuration,
   formatProviderUsage,
   formatTokens,
-  latestProviderOf
+  latestProviderOf,
+  providerUsageView
 } from '../src/format.js'
 
 test('compact formatting stays readable for large figures', () => {
@@ -40,7 +41,7 @@ test('conversation output is deliberately multi-line', () => {
 })
 
 test('provider usage formatting distinguishes subscription and balance', () => {
-  assert.match(formatProviderUsage('opencode-go', {
+  const usage = {
     ok: true,
     kind: 'subscription',
     windows: {
@@ -48,7 +49,17 @@ test('provider usage formatting distinguishes subscription and balance', () => {
       '7d': { status: 'ok', percent: 13, resetsAt: '2026-08-31T00:00:00Z' },
       '1m': null
     }
-  }, Date.parse('2026-08-28T10:00:00Z')), /OpenCode Go用量：5h 0%/)
+  }
+  const now = Date.parse('2026-08-28T10:00:00Z')
+  assert.equal(formatProviderUsage('opencode-go', usage, now), '5h:0% 2h0m 7d:13% 2d14h')
+  assert.deepEqual(providerUsageView('opencode-go', usage, now), {
+    kind: 'subscription',
+    label: 'OpenCode Go',
+    windows: [
+      { label: '5h', percent: 0, countdown: '2h0m' },
+      { label: '7d', percent: 13, countdown: '2d14h' }
+    ]
+  })
   assert.equal(formatProviderUsage('deepseek-official', {
     ok: true,
     kind: 'balance',

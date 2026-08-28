@@ -141,25 +141,36 @@ function formatCountdown(iso, now) {
   return `${minutes}m`
 }
 
-/** Format the provider-side balance/subscription response without exposing secrets. */
-export function formatProviderUsage(provider, payload, now = Date.now()) {
+function subscriptionWindowsOf(payload, now) {
+  const order = ['5h', '7d', '1m']
+  return order.map((label) => {
+    const value = payload.windows?.[label]
+    if (!value || value.status !== 'ok') return null
+    return {
+      label,
+      percent: Number.isFinite(value.percent) ? value.percent : '?',
+      countdown: formatCountdown(value.resetsAt, now)
+    }
+  }).filter(Boolean)
+}
+
+/** Build a provider usage view without exposing secrets to the browser. */
+export function providerUsageView(provider, payload, now = Date.now()) {
   const label = providerLabel(provider)
-  if (payload === null || payload === undefined || payload.status === 'loading') return `${label}：正在读取用量…`
+  if (payload === null || payload === undefined || payload.status === 'loading') {
+    return { kind: 'text', label, text: `${label}：正在读取用量…` }
+  }
   if (payload.ok !== true) {
-    if (payload.status === 'unconfigured') return `${label}：未配置 API 密钥`
-    if (payload.status === 'unsupported') return `${label}：暂无标准余额/订阅接口`
-    return `${label}：用量读取失败，稍后重试`
+    if (payload.status === 'unconfigured') return { kind: 'text', label, text: `${label}：未配置 API 密钥` }
+    if (payload.status === 'unsupported') return { kind: 'text', label, text: `${label}：暂无标准余额/订阅接口` }
+    return { kind: 'text', label, text: `${label}：用量读取失败，稍后重试` }
   }
 
   if (payload.kind === 'subscription') {
-    const order = ['5h', '7d', '1m']
-    const windows = order.map((key) => {
-      const value = payload.windows?.[key]
-      if (!value || value.status !== 'ok') return null
-      const percent = Number.isFinite(value.percent) ? value.percent : '?'
-      return `${key} ${percent}% · 重置 ${formatCountdown(value.resetsAt, now)}`
-    }).filter(Boolean)
-    return windows.length > 0 ? `${label}用量：${windows.join(' | ')}` : `${label}：暂无窗口用量`
+    const windows = subscriptionWindowsOf(payload, now)
+    return windows.length > 0
+      ? { kind: 'subscription', label, windows }
+      : { kind: 'text', label, text: `${label}：暂无窗口用量` }
   }
 
   if (payload.kind === 'balance') {
@@ -168,10 +179,21 @@ export function formatProviderUsage(provider, payload, now = Date.now()) {
       return `${currency} ${formatMoney(balance.totalBalance)}`
     }).filter(Boolean)
     const suffix = payload.available === false ? '（当前不可用）' : ''
-    return balances.length > 0 ? `${label}余额：${balances.join(' · ')}${suffix}` : `${label}：未返回余额`
+    return balances.length > 0
+      ? { kind: 'text', label, text: `${label}余额：${balances.join(' · ')}${suffix}` }
+      : { kind: 'text', label, text: `${label}：未返回余额` }
   }
 
-  return `${label}：暂无可显示的用量`
+  return { kind: 'text', label, text: `${label}：暂无可显示的用量` }
+}
+
+/** Format the compact legacy provider usage text used by the composer line. */
+export function formatProviderUsage(provider, payload, now = Date.now()) {
+  const view = providerUsageView(provider, payload, now)
+  if (view.kind === 'subscription') {
+    return view.windows.map(({ label, percent, countdown }) => `${label}:${percent}% ${countdown}`).join(' ')
+  }
+  return view.text
 }
 
 /** Build intentionally multi-line groups so narrow windows never ellipsize the whole bar. */

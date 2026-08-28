@@ -3,8 +3,8 @@ import { jsx, jsxs } from 'react/jsx-runtime'
 import {
   deriveStats,
   formatConversationLines,
-  formatProviderUsage,
-  latestProviderOf
+  latestProviderOf,
+  providerUsageView
 } from './format.js'
 
 const STYLE_ID = 'dsh-stats-line-pro/styles'
@@ -88,7 +88,22 @@ html[data-dsh-wallpaper-active] [data-slot="conversation.composer.dock"] > [data
 
 [data-stats-line-pro-row="provider"] {
   color: #000 !important;
-  font-weight: 600;
+  font-weight: inherit;
+}
+
+[data-stats-line-pro-provider-separator] {
+  display: inline;
+  color: #000 !important;
+  white-space: pre;
+}
+
+[data-stats-line-pro-clock] {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin: 0 2px;
+  color: #000 !important;
+  vertical-align: -1px;
 }
 
 body[data-ds-dark-theme] [data-stats-line-pro],
@@ -117,6 +132,10 @@ html.dark [data-stats-line-pro-separator] {
   [data-stats-line-pro-separator] {
     color: #000 !important;
   }
+  [data-stats-line-pro-provider-separator],
+  [data-stats-line-pro-clock] {
+    color: #000 !important;
+  }
 }
 `
 
@@ -127,6 +146,58 @@ function installStyles() {
   style.dataset.pluginCss = STYLE_ID
   style.textContent = CSS
   document.head.appendChild(style)
+}
+
+function ClockIcon() {
+  return jsxs('svg', {
+    'aria-hidden': true,
+    'data-stats-line-pro-clock': '',
+    focusable: 'false',
+    viewBox: '0 0 16 16',
+    width: 11,
+    height: 11,
+    children: [
+      jsx('circle', {
+        cx: 8,
+        cy: 8,
+        r: 6.2,
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 1.6,
+        key: 'circle'
+      }),
+      jsx('path', {
+        d: 'M8 4.8V8l2.6 1.6',
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 1.6,
+        strokeLinecap: 'round',
+        key: 'hands'
+      })
+    ]
+  })
+}
+
+function ProviderUsageContent({ view }) {
+  if (view.kind !== 'subscription') return view.text
+  const children = []
+  view.windows.forEach((window, index) => {
+    if (index > 0) children.push(jsx('span', {
+      'aria-hidden': true,
+      children: ' ',
+      key: `${window.label}-gap`
+    }))
+    children.push(jsx('span', {
+      children: `${window.label}:${window.percent}%`,
+      key: `${window.label}-head`
+    }))
+    children.push(jsx(ClockIcon, { key: `${window.label}-clock` }))
+    children.push(jsx('span', {
+      children: window.countdown,
+      key: `${window.label}-countdown`
+    }))
+  })
+  return children
 }
 
 async function fetchProviderUsage(provider, signal) {
@@ -196,8 +267,10 @@ const StatsLinePro = memo(function StatsLinePro({ useSession, useProjection, ses
     provider,
     identity?.model ?? ''
   ), [identity?.model, liveTokenUsage, nodes, provider, sessionStats, tokenUsage])
-  const providerLine = provider.length > 0 ? formatProviderUsage(provider, providerResult ?? { status: 'loading' }, now) : null
-  if (lines.length === 0 && providerLine === null) return null
+  const providerView = provider.length > 0
+    ? providerUsageView(provider, providerResult ?? { status: 'loading' }, now)
+    : null
+  if (lines.length === 0 && providerView === null) return null
 
   const children = []
   const appendGroup = (content, key, kind = 'conversation') => {
@@ -214,10 +287,15 @@ const StatsLinePro = memo(function StatsLinePro({ useSession, useProjection, ses
     }))
   }
   lines.forEach((line, index) => appendGroup(line, `conversation-${index}`))
-  if (providerLine !== null) appendGroup(providerLine, 'provider', 'provider')
+  if (providerView !== null) appendGroup(
+    jsx(ProviderUsageContent, { view: providerView }),
+    'provider',
+    'provider'
+  )
   return jsx('div', {
     'aria-label': '会话统计',
     'data-stats-line-pro': '',
+    'data-stats-line-pro-provider': provider || undefined,
     children
   })
 })
