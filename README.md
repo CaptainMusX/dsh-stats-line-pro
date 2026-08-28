@@ -21,8 +21,13 @@ dsh plugin --profile web add github:CaptainMusX/dsh-stats-line-pro
 本地开发安装：
 
 ```text
-dsh plugin --profile web add link:E:/dsh-stats-line-pro
+# 当前 DSH/pnpm 在 Windows 下对 link:E:/... 的解析可能把盘符当成相对目录。
+# 先创建一个明确的本地 junction，再把 junction 加入 profile：
+New-Item -ItemType Junction -Path C:\Users\CaptainMus\source\dsh-stats-line-pro-e -Target E:\dsh-stats-line-pro
+dsh plugin --profile web add link:C:/Users/CaptainMus/source/dsh-stats-line-pro-e
 ```
+
+不要复用已有的 `C:\Users\CaptainMus\source\dsh-stats-line-pro` 链接；它可能指向另一份旧 checkout。生产使用优先选择上面的 GitHub 安装命令。
 
 安装后重启 DSH。它可以与 `@linxin666/dsh-live-stats` 共存：后者继续提供 `liveTokenUsage` 投影，本插件负责稳定的显示层和供应商用量层。
 
