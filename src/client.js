@@ -72,6 +72,20 @@ html[data-dsh-wallpaper-active] [data-slot="conversation.composer.dock"] > [data
   white-space: normal !important;
 }
 
+/* dsh-better-sidebar colors every active dock child with a higher-specificity
+   rule; keep this plugin's explicit black text contract after that rule. */
+html[data-dsh-skin] [data-phase="active"] [data-slot="conversation.composer.dock"] > [data-stats-line-pro],
+html[data-dsh-custom-theme]:not([data-dsh-skin]) [data-phase="active"] [data-slot="conversation.composer.dock"] > [data-stats-line-pro],
+html[data-dsh-wallpaper-active] [data-phase="active"] [data-slot="conversation.composer.dock"] > [data-stats-line-pro] {
+  color: #000 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  text-shadow: none !important;
+}
+
 [data-stats-line-pro-row] {
   display: inline;
   max-width: 100%;
@@ -101,7 +115,7 @@ html[data-dsh-wallpaper-active] [data-slot="conversation.composer.dock"] > [data
   display: inline-block;
   width: 11px;
   height: 11px;
-  margin: 0 2px;
+  margin: 0;
   color: #000 !important;
   vertical-align: -1px;
 }
@@ -181,19 +195,14 @@ function ClockIcon() {
 function ProviderUsageContent({ view }) {
   if (view.kind !== 'subscription') return view.text
   const children = []
-  view.windows.forEach((window, index) => {
-    if (index > 0) children.push(jsx('span', {
-      'aria-hidden': true,
-      children: ' ',
-      key: `${window.label}-gap`
-    }))
+  view.windows.forEach((window) => {
     children.push(jsx('span', {
-      children: `${window.label}:${window.percent}%`,
+      children: `${window.label}:${window.percent}% `,
       key: `${window.label}-head`
     }))
     children.push(jsx(ClockIcon, { key: `${window.label}-clock` }))
     children.push(jsx('span', {
-      children: window.countdown,
+      children: ` ${window.countdown} `,
       key: `${window.label}-countdown`
     }))
   })
