@@ -3,6 +3,7 @@
 一个面向 DeepSeek Harness Web 的统计条插件：
 
 - 用独立的透明多行文字条替代易被皮肤覆盖的原生统计行；
+- 浅色主题使用黑色文字，深色主题跟随 DSH 的 `--dsw-alias-label-primary` 变量使用高对比浅色文字，且两种模式均不添加阴影；
 - 保留当前会话的轮数、步骤、LLM/工具耗时、首 token、吞吐、缓存命中、输入/输出 token；
 - DeepSeek 官方路由显示 `/user/balance` 余额；
 - OpenCode Go 路由以旧版紧凑格式显示 5 小时、7 天、1 个月窗口用量和时钟图标倒计时（如 `5h:0% 2h0m 7d:13% 2d14h`）；
