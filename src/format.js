@@ -299,6 +299,7 @@ export function providerLabel(provider) {
   if (typeof provider !== 'string' || provider.length === 0) return '当前供应商'
   if (provider.includes('opencode-go')) return 'OpenCode Go'
   if (provider.includes('packcode')) return 'PackCode DS'
+  if (provider === 'r4coder') return 'R4 Coder'
   if (provider.includes('deepseek')) return 'DeepSeek'
   return provider
 }
@@ -348,21 +349,24 @@ export function calculateConversationCost(events = [], now = Date.now(), fallbac
   const pending = new Map()
   const totals = new Map()
   const entries = []
+  const unpricedEntries = []
   let context = null
   let pricedRequests = 0
   let unpricedRequests = 0
   let missingUsageRequests = 0
 
   const addSample = (sample) => {
+    const identity = sample.identity ?? identityFromEvent(sample.event, context, fallbackIdentity)
     const normalized = billingUsage(sample.usage)
     if (normalized === null) {
       missingUsageRequests += 1
+      unpricedEntries.push({ ...identity, reason: "missing-usage" })
       return
     }
-    const identity = sample.identity ?? identityFromEvent(sample.event, context, fallbackIdentity)
     const cost = estimateModelCost(normalized, identity?.provider, identity?.model, sample.at)
     if (cost === null) {
       unpricedRequests += 1
+      unpricedEntries.push({ ...identity, reason: "missing-price" })
       return
     }
     pricedRequests += 1
@@ -419,6 +423,7 @@ export function calculateConversationCost(events = [], now = Date.now(), fallbac
       const usage = event.data?.usage ?? sample?.usage
       if (usage === undefined) {
         missingUsageRequests += 1
+        unpricedEntries.push({ ...identityFromEvent(event, context, fallbackIdentity), reason: "missing-usage" })
         continue
       }
       addSample({
@@ -441,6 +446,7 @@ export function calculateConversationCost(events = [], now = Date.now(), fallbac
   return {
     totals: [...totals.entries()].map(([currency, amount]) => ({ currency, amount })),
     entries,
+    unpricedEntries,
     pricedRequests,
     unpricedRequests,
     missingUsageRequests,
@@ -497,6 +503,7 @@ export function providerUsageView(provider, payload, now = Date.now()) {
   if (payload === null || payload === undefined || payload.status === 'loading') {
     return { kind: 'text', label, text: `${label}：正在读取用量…` }
   }
+  if (payload.status === 'unsupported') return { kind: 'text', label, text: `${label}：暂无标准余额/订阅接口` }
   if (payload.ok !== true) {
     if (payload.status === 'unconfigured') return { kind: 'text', label, text: `${label}：未配置 API 密钥` }
     if (payload.status === 'unsupported') return { kind: 'text', label, text: `${label}：暂无标准余额/订阅接口` }
@@ -521,7 +528,35 @@ export function providerUsageView(provider, payload, now = Date.now()) {
       : { kind: 'text', label, text: `${label}：未返回余额` }
   }
 
+  if (payload.kind === 'r4-plan') {
+    if (payload.isValid === false) return { kind: 'text', label, text: `${label}：暂无` }
+    const remaining = Number(payload.remaining)
+    return Number.isFinite(remaining)
+      ? { kind: 'r4-plan', label, remaining, unit: payload.unit === 'USD' ? 'USD' : String(payload.unit ?? ''), planName: payload.planName, total: Number(payload.total), extra: payload.extra }
+      : { kind: 'text', label, text: `${label}：暂无` }
+  }
+
   return { kind: 'text', label, text: `${label}：暂无可显示的用量` }
+}
+
+/** Compact label used by the fixed-height composer statistics card. */
+export function compactProviderUsage(provider, payload, now = Date.now()) {
+  if (payload === null || payload === undefined || payload.status === 'loading' || payload.ok === false || payload.status === 'unsupported') {
+    return `${providerLabel(provider)} 暂无`
+  }
+  const view = providerUsageView(provider, payload, now)
+  if (view.kind === 'r4-plan') return `${view.label} $${view.remaining.toFixed(2)}`
+  if (view.kind === 'subscription') {
+    const best = view.windows.find((window) => Number.isFinite(window.percent))
+    return best === undefined ? `${view.label} 暂无` : `${view.label} 剩余 ${Math.max(0, 100 - best.percent)}%`
+  }
+  if (view.kind === 'text') {
+    const text = typeof view.text === 'string' ? view.text : ''
+    const separator = Math.max(text.lastIndexOf('余额：'), text.lastIndexOf('：'))
+    const value = separator < 0 ? '' : text.slice(separator + (text.startsWith('余额：', separator) ? 3 : 1))
+    return `${view.label} ${value && !/正在读取|失败|未配置|暂无/u.test(value) ? value : '暂无'}`
+  }
+  return `${view.label} 暂无`
 }
 
 /** Format the compact legacy provider usage text used by the composer line. */
@@ -569,4 +604,22 @@ export function formatConversationLines(statsInput, usageInput, liveUsageInput, 
     }
   }
   return lines
+}
+
+/** Conversation-only breakdown; preserve exact provider IDs and currencies. */
+export function conversationCostView(cost) {
+  if (cost?.status !== 'ready') return { summary: cost?.status === 'error' ? '成本读取失败' : '成本读取中…', rows: [], providers: [] }
+  const groups = new Map()
+  for (const entry of [...(cost.entries ?? []), ...(cost.unpricedEntries ?? [])]) {
+    const key = JSON.stringify([entry.provider, entry.model, entry.currency])
+    const group = groups.get(key) ?? { provider: entry.provider, model: entry.model, currency: entry.currency, amount: 0, missing: 0 }
+    if (Number.isFinite(entry.amount)) group.amount += entry.amount
+    else group.missing += 1
+    groups.set(key, group)
+  }
+  return {
+    summary: (formatCostSummary(cost) ?? '花费 0').replace(/^花费[： ]?/, '累计成本 '),
+    rows: [...groups.values()].map(g => ({ label: `${providerLabel(g.provider)} / ${g.model || '未知模型'}`, value: g.missing ? `${g.missing} 次未计价` : `${currencyPrefix(g.currency)}${g.amount.toFixed(4)}` })),
+    providers: [...new Set([...groups.values()].map(g => g.provider).filter(Boolean))]
+  }
 }

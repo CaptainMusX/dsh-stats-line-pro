@@ -1,3 +1,15 @@
+# 当前统计条（2026-09-12）
+
+仅显示输入框下方带底色的一行。插件保留会话历史计费与供应商查询，使用同一 dock 内隐藏的数据节点将结果交给核心第三块，不再渲染纯文字统计条。
+
+- 折叠：固定单行，只显示当前对话累计成本和当前供应商的简短余额，例如“累计成本 $0.30 · R4 Coder $29.90”。
+- 展开：按供应商/模型汇总成本，以及本对话实际使用过的供应商余额/订阅余量；余量名称仅使用供应商名称。
+- 未知价格或缺失用量不按零处理，显示未计价次数；成本为现有价格表估算，不是账单扣款。
+- R4 Coder 使用已配置的 `https://api.r4.codes/v1/cli/meta` 查询套餐或钱包余量；若无有效套餐、余额或查询失败，折叠处显示“R4 Coder 暂无”。接口主机固定为 `api.r4.codes`。
+- 核心配套补丁：`C:/Users/CaptainMus/.dsh/statsbar/patch-ui-chat-statsbar.mjs`，已通过一键自定义恢复脚本应用。刷新页面生效。
+
+以下为原有插件说明与历史安装信息。
+
 # dsh-stats-line-pro
 
 一个面向 DeepSeek Harness Web 的统计条插件：
@@ -34,6 +46,18 @@ dsh plugin --profile web add link:C:/Users/CaptainMus/source/dsh-stats-line-pro-
 不要复用已有的 `C:\Users\CaptainMus\source\dsh-stats-line-pro` 链接；它可能指向另一份旧 checkout。生产使用优先选择上面的 GitHub 安装命令。
 
 安装后重启 DSH。它可以与 `@linxin666/dsh-live-stats` 共存：后者继续提供 `liveTokenUsage` 投影，本插件负责稳定的显示层、完整历史计费和供应商用量层。
+
+## 会话历史读取
+
+计费需要完整会话历史。运行时只暴露生成式 Remote `session/page`（HTTP 通道 `/api`），
+请求体为 `{ type: "client-request", rpcId, method: "session/page", payload: { args: { request } } }`，
+`request = { address, throughSeq, maxMessages, beforeSeq? }`：
+
+- `throughSeq` **不能超过会话游标**（超出会返回 `gateway/bad-request: past cursor <n>`）；
+- 游标本身没有独立查询接口，客户端首次调用以 `Number.MAX_SAFE_INTEGER` 探测，
+  从错误信息里解析真实游标并缓存，再按 `beforeSeq` 向前翻页直到 `hasMore:false`。
+
+早期版本使用的 `/api/session.history` RPC 在当前运行时并不存在（404），已废弃。
 
 ## 安全边界
 

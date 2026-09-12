@@ -4,6 +4,7 @@ import {
   billedInputTokens,
   cacheHitPercent,
   calculateConversationCost,
+  conversationCostView,
   estimateModelCost,
   formatConversationLines,
   formatCostSummary,
@@ -12,7 +13,8 @@ import {
   formatTokens,
   latestProviderOf,
   pricingFor,
-  providerUsageView
+  providerUsageView,
+  compactProviderUsage
 } from '../src/format.js'
 
 test('compact formatting stays readable for large figures', () => {
@@ -20,6 +22,13 @@ test('compact formatting stays readable for large figures', () => {
   assert.equal(formatTokens(12_200), '12.2K')
   assert.equal(formatTokens(1_200_000), '1.2M')
   assert.equal(formatDuration(162_000), '2m42s')
+})
+
+test('R4 Coder compact balance is single-line and falls back to 暂无', () => {
+  const payload = { ok: true, kind: 'r4-plan', isValid: true, planName: 'Pro', remaining: 29.9, total: 50, unit: 'USD' }
+  assert.equal(compactProviderUsage('r4coder', payload), 'R4 Coder $29.90')
+  assert.equal(compactProviderUsage('r4coder', null), 'R4 Coder 暂无')
+  assert.equal(compactProviderUsage('r4coder', { ok: true, kind: 'r4-plan', isValid: false }), 'R4 Coder 暂无')
 })
 
 test('token buckets and cache ratio use the three billing buckets', () => {
@@ -139,4 +148,15 @@ test('latest provider comes from durable assistant provenance', () => {
     { kind: 'user' },
     { kind: 'assistant', provenance: { provider: 'packcode-ds', model: 'deepseek-v4-pro' } }
   ]), { provider: 'packcode-ds', model: 'deepseek-v4-pro' })
+})
+test('cost detail groups models, keeps currencies and includes unpriced providers', () => {
+  const view = conversationCostView({ status: 'ready', totals: [{ currency: 'CNY', amount: 3 }, { currency: 'USD', amount: 4 }], entries: [
+    { provider: 'deepseek', model: 'flash', currency: 'CNY', amount: 1 },
+    { provider: 'deepseek', model: 'flash', currency: 'CNY', amount: 2 },
+    { provider: 'opencode-go', model: 'pro', currency: 'USD', amount: 4 }
+  ], unpricedEntries: [{ provider: 'other', model: 'unknown' }], unpricedRequests: 1 })
+  assert.equal(view.summary, '累计成本 ¥3.00 + $4.00（1 次未计价）')
+  assert.deepEqual(view.rows.map(r => r.value), ['¥3.0000', '$4.0000', '1 次未计价'])
+  assert.deepEqual(view.providers, ['deepseek', 'opencode-go', 'other'])
+  assert.equal(conversationCostView({ status: 'error' }).summary, '成本读取失败')
 })

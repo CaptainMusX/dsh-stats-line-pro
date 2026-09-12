@@ -29,6 +29,7 @@ function providerFromRequest(req) {
 function providerKind(provider) {
   if (provider === 'deepseek-official' || provider === 'deepseek-vision') return 'deepseek-balance'
   if (provider === 'opencode-go' || provider.startsWith('opencode-go-')) return 'opencode-subscription'
+  if (provider === 'r4coder') return 'r4-coder-plan'
   return 'unsupported'
 }
 
@@ -42,7 +43,9 @@ function configuredProfile(ctx, provider, kind) {
 function credentialName(ctx, provider, kind) {
   const profile = configuredProfile(ctx, provider, kind)
   if (typeof profile.apiKeyEnv === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(profile.apiKeyEnv)) return profile.apiKeyEnv
-  return kind === 'deepseek-balance' ? 'DEEPSEEK_API_KEY' : 'OPENCODE_GO_API_KEY'
+  if (kind === 'deepseek-balance') return 'DEEPSEEK_API_KEY'
+  if (kind === 'opencode-subscription') return 'OPENCODE_GO_API_KEY'
+  return 'R4CODER_API_KEY'
 }
 
 async function resolveCredential(ctx, reference) {
@@ -68,6 +71,19 @@ async function fetchJson(url, key) {
   const text = await response.text()
   if (text.length > MAX_RESPONSE_BYTES) throw new Error('upstream-response-too-large')
   return JSON.parse(text)
+}
+
+function finiteMoney(value) {
+  const amount = Number(value)
+  return Number.isFinite(amount) ? Math.max(0, amount) : 0
+}
+
+function r4MetaUrl(ctx, provider) {
+  const configured = configuredProfile(ctx, provider, 'r4-coder-plan')
+  const source = typeof configured.baseURL === 'string' ? configured.baseURL : ''
+  const base = new URL(source)
+  if (base.protocol !== 'https:' || base.hostname !== 'api.r4.codes') throw new Error('r4-base-url-not-allowed')
+  return new URL('/v1/cli/meta', base).toString()
 }
 
 function normalizeWindow(value) {
@@ -96,6 +112,32 @@ async function readProviderUsage(ctx, provider) {
         toppedUpBalance: typeof item?.topped_up_balance === 'string' || typeof item?.topped_up_balance === 'number' ? String(item.topped_up_balance) : ''
       })).filter((item) => item.totalBalance.length > 0)
       return { ok: true, provider, kind: 'balance', available: data?.is_available !== false, balances }
+    }
+
+    if (kind === 'r4-coder-plan') {
+      const data = await fetchJson(r4MetaUrl(ctx, provider), key)
+      const plan = data?.plan
+      const wallet = data?.wallet
+      if (plan === null || typeof plan !== 'object') {
+        const remaining = finiteMoney(wallet?.balance_usd)
+        return remaining > 0
+          ? { ok: true, provider, kind: 'r4-plan', planName: '钱包', remaining, total: -1, unit: 'USD', extra: '' }
+          : { ok: true, provider, kind: 'r4-plan', isValid: false, invalidMessage: '没有生效中的套餐或钱包余额', remaining: 0, unit: 'USD', extra: '' }
+      }
+      const remaining = finiteMoney(plan.remaining_usd)
+      const total = finiteMoney(plan.total_usd)
+      return {
+        ok: true,
+        provider,
+        kind: 'r4-plan',
+        isValid: true,
+        planName: typeof plan.package_name === 'string' && plan.package_name ? plan.package_name : '套餐',
+        remaining,
+        total,
+        used: Math.max(total - remaining, 0),
+        unit: 'USD',
+        extra: wallet === null || typeof wallet !== 'object' ? '' : `钱包 $${finiteMoney(wallet.balance_usd).toFixed(2)}`
+      }
     }
 
     const data = await fetchJson('https://opencode.ai/zen/go/v1/usage', key)
