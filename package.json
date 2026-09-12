@@ -1,7 +1,7 @@
 {
   "name": "dsh-stats-line-pro",
-  "version": "0.2.2",
-  "description": "DeepSeek Harness Web statistics line with transparent multi-line layout, provider usage, and cumulative per-request cost.",
+  "version": "0.2.3",
+  "description": "Compact DeepSeek Harness conversation statistics with per-model costs and provider balances.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -13,7 +13,7 @@
   "files": [
     "lib",
     "src",
-    "scripts/build.mjs",
+    "scripts",
     "tests",
     "cordis.patch.yml",
     "README.md",
@@ -21,7 +21,8 @@
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --test tests/format.test.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "patch:ui": "node scripts/patch-ui-chat-statsbar.mjs",
     "check": "npm run build && npm test"
   },
   "engines": {

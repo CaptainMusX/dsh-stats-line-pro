@@ -3,13 +3,22 @@ import { jsx } from 'react/jsx-runtime'
 import {
   calculateConversationCost,
   compactProviderUsage,
+  compactCostSummary,
+  detailedProviderUsage,
   conversationCostView,
-  latestProviderOf,
-  providerUsageView
+  latestProviderOf
 } from './format.js'
 
 const STYLE_ID = 'dsh-stats-line-pro/styles'
 const CSS = `
+html body [data-slot="conversation.composer.dock"] > [data-composer-stats] {
+  column-gap: 4px !important;
+  row-gap: 0 !important;
+  padding: 4px 10px !important;
+  flex-wrap: wrap !important;
+}
+[data-composer-stats] > span { margin: 0 !important; }
+[data-composer-stats] button { line-height: 20px; padding: 1px 6px; }
 [data-slot="conversation.composer.dock"] > [data-dsh-live-tps],
 [data-slot="conversation.composer.dock"] > [data-stats-line],
 [data-slot="conversation.composer.dock"] > [data-stats-cost-bridge] {
@@ -157,7 +166,8 @@ function mergeHistoryTail(existing, incoming) {
 const StatsLinePro = memo(function StatsLinePro({ useSession, useProjection, sessionId }) {
   const nodes = useSession((snapshot) => snapshot?.chat?.legacy?.nodes ?? snapshot?.legacy?.nodes ?? [])
   const running = useSession((snapshot) => snapshot?.running ?? false)
-  const identity = useMemo(() => latestProviderOf(nodes), [nodes])
+  const selected = useProjection('modelSelection')
+  const identity = useMemo(() => selected?.next?.provider ? selected.next : selected?.provider ? selected : latestProviderOf(nodes), [nodes, selected])
   const provider = identity?.provider ?? ''
   const [providerResult, setProviderResult] = useState(null)
   const [costState, setCostState] = useState({ status: 'loading' })
@@ -247,18 +257,13 @@ const StatsLinePro = memo(function StatsLinePro({ useSession, useProjection, ses
     const timer = setInterval(() => void refresh(), 60000)
     return () => { alive = false; controller.abort(); clearInterval(timer) }
   }, [usedKey, sessionId])
-  const quotaText = (id, payload) => {
-    const view = providerUsageView(id, payload, now)
-    return view.kind === 'subscription'
-      ? view.label + ' 订阅余量：' + view.windows.map(w => w.label + ' 剩余 ' + (Number.isFinite(w.percent) ? Math.max(0, 100 - w.percent) + '%' : '未知') + '（' + w.countdown + ' 后重置）').join(' · ')
-      : view.text
-  }
   const currentResult = providerResult?.forProvider === provider ? providerResult.payload : null
   const data = {
     summary: costView.summary,
+    compactSummary: compactCostSummary(costState),
     current: provider ? compactProviderUsage(provider, currentResult, now) : '当前供应商 暂无',
     rows: costView.rows,
-    quotas: costView.providers.map(id => quotaText(id, id === provider ? currentResult : usedResults[id]))
+    quotas: costView.providers.map(id => detailedProviderUsage(id, id === provider ? currentResult : usedResults[id], now))
   }
   return jsx('span', {
     hidden: true,

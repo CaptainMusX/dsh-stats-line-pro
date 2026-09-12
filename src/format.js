@@ -559,6 +559,26 @@ export function compactProviderUsage(provider, payload, now = Date.now()) {
   return `${view.label} 暂无`
 }
 
+/** Every provider variant must produce text before crossing the JSON bridge. */
+export function detailedProviderUsage(provider, payload, now = Date.now()) {
+  const view = providerUsageView(provider, payload, now)
+  if (view.kind === 'r4-plan') {
+    const total = Number.isFinite(view.total) && view.total >= 0 ? ` / $${view.total.toFixed(2)}` : ''
+    return `${view.label}：${view.planName || '套餐'} 剩余 $${view.remaining.toFixed(2)}${total}${view.extra ? ' · ' + view.extra : ''}`
+  }
+  if (view.kind === 'subscription') {
+    return view.label + ' 订阅余量：' + view.windows.map(w => `${w.label} 剩余 ${Number.isFinite(w.percent) ? Math.max(0, 100 - w.percent) + '%' : '未知'}（${w.countdown} 后重置）`).join(' · ')
+  }
+  return typeof view.text === 'string' ? view.text : `${view.label}：暂无`
+}
+
+export function compactCostSummary(cost) {
+  if (cost?.status !== 'ready') return '累计成本 暂无'
+  const totals = (cost.totals ?? []).filter(item => Number.isFinite(item.amount))
+  if (totals.length === 0) return (cost.unpricedRequests || cost.missingUsageRequests) ? '累计成本 暂无' : '累计成本 $0.00'
+  return '累计成本 ' + totals.map(item => `${currencyPrefix(item.currency)}${item.amount.toFixed(2)}`).join(' + ')
+}
+
 /** Format the compact legacy provider usage text used by the composer line. */
 export function formatProviderUsage(provider, payload, now = Date.now()) {
   const view = providerUsageView(provider, payload, now)
