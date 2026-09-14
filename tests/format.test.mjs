@@ -103,6 +103,18 @@ test('OpenCode Go uses model-specific peak and off-peak prices', () => {
   assert.equal(pricingFor('opencode-go', 'deepseek-v4-flash', new Date('2026-08-17T02:00:00Z'), usage).input, 0.44)
 })
 
+test('OpenCode Go configured deepseek-flash alias is priced as DeepSeek V4 Flash', () => {
+  const cost = estimateModelCost(
+    { inputTokens: 1_000_000, outputTokens: 1_000_000, cacheReadTokens: 0 },
+    'opencode-go',
+    'deepseek-flash',
+    new Date('2026-08-17T02:00:00Z')
+  )
+  assert.equal(cost?.model, 'deepseek-v4-flash')
+  assert.equal(cost?.currency, 'USD')
+  assert.equal(cost?.amount, 1.76)
+})
+
 test('conversation cost follows each assistant source and accumulates currencies separately', () => {
   const events = [
     { type: 'request/context', seq: 1, time: Date.parse('2026-08-17T01:59:00Z'), data: { provider: 'opencode-go', model: 'deepseek-v4-flash' } },
