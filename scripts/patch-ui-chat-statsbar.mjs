@@ -103,15 +103,19 @@ function QuotaPill({ t, dialog }) {
     const timer = setInterval(refresh, 500);
     return () => clearInterval(timer);
   }, []);
-  const label = data ? (data.compactSummary || "累计成本 暂无") + " · " + data.current : "累计成本读取中…";
+  const label = data ? "累计成本 " + (data.costValue || "暂无") + " · " + data.current : "累计成本读取中…";
   const rows = [];
   const row = (name, value, key) => {
     rows.push((0, react_jsx_runtime.jsx)("dt", { children: name, key: "t" + key }));
     rows.push((0, react_jsx_runtime.jsx)("dd", { children: value, key: "d" + key }));
   };
-  row("累计成本（估算）", data?.summary || "读取中…", "total");
+  row("累计成本", data?.costValue || "暂无", "total");
   (data?.rows || []).forEach((item, i) => row(item.label, item.value, "cost" + i));
   (data?.quotas || []).forEach((value, i) => {
+    if (value && value.kind === "subscription" && Array.isArray(value.windows)) {
+      value.windows.forEach((window, index) => row(value.label + " 订阅余量", window.label + "：" + window.remainingPercent + "% · " + window.resetLabel, "quota" + i + "-" + index));
+      return;
+    }
     if (typeof value !== "string") return;
     const split = value.search(/[：:]/);
     row(split < 0 ? "供应商余量" : value.slice(0, split), split < 0 ? value : value.slice(split + 1), "quota" + i);

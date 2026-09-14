@@ -261,6 +261,7 @@ const StatsLinePro = memo(function StatsLinePro({ useSession, useProjection, ses
   const data = {
     summary: costView.summary,
     compactSummary: compactCostSummary(costState),
+    costValue: compactCostSummary(costState).replace(/^累计成本\s*/u, ''),
     current: provider ? compactProviderUsage(provider, currentResult, now) : '当前供应商 暂无',
     rows: costView.rows,
     quotas: costView.providers.map(id => detailedProviderUsage(id, id === provider ? currentResult : usedResults[id], now))

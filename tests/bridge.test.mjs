@@ -9,7 +9,7 @@ test('R4 plan survives JSON bridge and renders without crashing the whole stats 
   assert.equal(detail, 'R4 Coder：Code Mini 剩余 $29.90 / $30.00 · 钱包 $5.00')
   const compactSummary = compactCostSummary({ status: 'ready', totals: [{ currency: 'USD', amount: .2972 }], unpricedRequests: 146 })
   assert.equal(compactSummary, '累计成本 $0.30')
-  const bridge = JSON.parse(JSON.stringify({ compactSummary, summary: '累计成本 $0.30（146 次未计价）', current: 'R4 Coder $29.90', quotas: [null, detail] }))
+  const bridge = JSON.parse(JSON.stringify({ compactSummary, costValue: '$0.30', summary: '累计成本 $0.30（146 次未计价）', current: 'R4 Coder $29.90', quotas: [null, detail] }))
   const script = readFileSync(new URL('../scripts/patch-ui-chat-statsbar.mjs', import.meta.url), 'utf8')
   const injected = script.split('const INJECTED = `')[1].split('\n`')[0].replace('${JS_MARKER}', '')
   const element = (tag, props) => ({ tag, ...props })
@@ -24,4 +24,17 @@ test('R4 plan survives JSON bridge and renders without crashing the whole stats 
   const result = vm.runInContext(injected + '\nQuotaPill({})', context)
   assert.equal(result.children[0]['aria-label'], '累计成本 $0.30 · R4 Coder $29.90')
   assert.match(JSON.stringify(result), /Code Mini/)
+})
+
+test('subscription windows are represented as separate provider rows', () => {
+  const detail = detailedProviderUsage('opencode-go', {
+    ok: true,
+    kind: 'subscription',
+    windows: {
+      '5h': { status: 'ok', percent: 80, resetsAt: '2099-09-19T08:27:00.000Z' },
+      '7d': { status: 'ok', percent: 60, resetsAt: '2099-09-19T08:27:00.000Z' }
+    }
+  }, Date.parse('2099-09-18T08:00:00.000Z'))
+  assert.equal(detail.kind, 'subscription')
+  assert.deepEqual(detail.windows.map(window => [window.label, window.remainingPercent]), [['5h', 20], ['7d', 40]])
 })

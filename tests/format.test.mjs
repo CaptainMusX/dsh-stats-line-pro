@@ -69,8 +69,8 @@ test('provider usage formatting distinguishes subscription and balance', () => {
     kind: 'subscription',
     label: 'OpenCode Go',
     windows: [
-      { label: '5h', percent: 0, countdown: '2h0m' },
-      { label: '7d', percent: 13, countdown: '2d14h' }
+      { label: '5h', percent: 0, remainingPercent: 100, countdown: '2h0m', resetLabel: '20:00' },
+      { label: '7d', percent: 13, remainingPercent: 87, countdown: '2d14h', resetLabel: '8月31日08:00' }
     ]
   })
   assert.equal(formatProviderUsage('deepseek-official', {
