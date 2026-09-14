@@ -1,6 +1,6 @@
 {
   "name": "dsh-stats-line-pro",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Compact DeepSeek Harness conversation statistics with per-model costs and provider balances.",
   "type": "module",
   "main": "lib/index.js",

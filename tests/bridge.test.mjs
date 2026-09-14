@@ -36,5 +36,5 @@ test('subscription windows are represented as separate provider rows', () => {
     }
   }, Date.parse('2099-09-18T08:00:00.000Z'))
   assert.equal(detail.kind, 'subscription')
-  assert.deepEqual(detail.windows.map(window => [window.label, window.remainingPercent]), [['5h', 20], ['7d', 40]])
+  assert.deepEqual(detail.windows.map(window => [window.label, window.usedPercent]), [['5h', 80], ['7d', 60]])
 })

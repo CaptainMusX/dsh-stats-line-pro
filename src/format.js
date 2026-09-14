@@ -503,7 +503,7 @@ function subscriptionWindowsOf(payload, now) {
     return {
       label,
       percent: Number.isFinite(value.percent) ? value.percent : '?',
-      remainingPercent: Number.isFinite(value.percent) ? Math.max(0, 100 - value.percent) : '?',
+      usedPercent: Number.isFinite(value.percent) ? value.percent : '?',
       countdown: formatCountdown(value.resetsAt, now),
       resetLabel: formatResetAt(value.resetsAt, now)
     }
@@ -561,7 +561,7 @@ export function compactProviderUsage(provider, payload, now = Date.now()) {
   if (view.kind === 'r4-plan') return `${view.label} $${view.remaining.toFixed(2)}`
   if (view.kind === 'subscription') {
     const best = view.windows.find((window) => Number.isFinite(window.percent))
-    return best === undefined ? `${view.label} 暂无` : `${view.label} 剩余 ${Math.max(0, 100 - best.percent)}%`
+    return best === undefined ? `${view.label} 暂无` : `${view.label} 用量 ${best.percent}%`
   }
   if (view.kind === 'text') {
     const text = typeof view.text === 'string' ? view.text : ''

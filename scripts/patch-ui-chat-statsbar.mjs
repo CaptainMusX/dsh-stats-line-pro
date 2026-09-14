@@ -113,7 +113,7 @@ function QuotaPill({ t, dialog }) {
   (data?.rows || []).forEach((item, i) => row(item.label, item.value, "cost" + i));
   (data?.quotas || []).forEach((value, i) => {
     if (value && value.kind === "subscription" && Array.isArray(value.windows)) {
-      value.windows.forEach((window, index) => row(value.label + " 订阅余量", window.label + "：" + window.remainingPercent + "% · " + window.resetLabel, "quota" + i + "-" + index));
+      value.windows.forEach((window, index) => row(value.label + " 订阅用量", window.label + "：" + window.usedPercent + "% · " + window.resetLabel, "quota" + i + "-" + index));
       return;
     }
     if (typeof value !== "string") return;
